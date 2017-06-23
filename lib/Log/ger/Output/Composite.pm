@@ -138,6 +138,8 @@ sub get_hooks {
 1;
 # ABSTRACT: Composite output
 
+=for Pod::Coverage ^(.+)$
+
 =head1 SYNOPSIS
 
  use Log::ger::Output Composite => (
