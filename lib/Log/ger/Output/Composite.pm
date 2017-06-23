@@ -6,16 +6,12 @@ package Log::ger::Output::Composite;
 use strict;
 use warnings;
 
-use Log::ger::Util;
+sub get_hooks {
+    my %conf = @_;
 
-sub import {
-    my ($package, %import_args) = @_;
-
-    # form a linear list of output specifications, and require the output
-    # modules
     my @ospecs;
     {
-        my $outputs = $import_args{outputs};
+        my $outputs = $conf{outputs};
         for my $oname (sort keys %$outputs) {
             my $ospec0 = $outputs->{$oname};
             my @ospecs0;
@@ -38,84 +34,105 @@ sub import {
         }
     }
 
-    my $plugin = sub {
-        no strict 'refs';
+    return {
+        'create_log_routine' => [
+            # install at very high priority (5) to override the default Log::ger
+            # behavior (at priority 10) that installs null routines to high
+            # levels. so we handle all levels.
+            __PACKAGE__, 5,
+            sub {
+                no strict 'refs';
 
-        my %args = @_;
-        my $saved;
-        my $codes = [];
-        # extract the code from each output module's hook, collect them and call
-        # them all in our code
-        for my $ospec (@ospecs) {
-            my $saved0 = Log::ger::Util::empty_plugins('create_log_routine');
-            $saved ||= $saved0;
-            my $oargs = $ospec->{args} || {};
-            my $mod = $ospec->{_mod};
-            $mod->import(%$oargs);
-            my $res = Log::ger::run_plugins(
-                'create_log_routine', \%args, 1);
-            my $code = $res or die "Hook from output module '$mod' ".
-                "didn't produce log routine";
-            push @$codes, $code;
-        }
-        Log::ger::Util::restore_plugins('create_log_routine', $saved) if $saved;
-        unless (@$codes) {
-            $Log::err::_log_is_null = 1;
-            return [sub {0}];
-        }
+                my %args = @_;
 
-        # put the codes in a package so it's addressable from string-eval'ed
-        # code
-        my ($codes_addr) = "$codes" =~ /0x(\w+)/;
-        my $codes_varname = "Log::ger::Stash::A$codes_addr";
-        ${$codes_varname} = $codes;
+                my $target = $args{target};
+                my $target_arg = $args{target_arg};
 
-        # generate logger routine
-        my $code;
-        {
-            my @src;
-            push @src, "sub {\n";
-
-            #push @src, "  my $ctx = $_[0];\n";
-
-            # XXX filter by category_level
-
-            for my $i (0..$#ospecs) {
-                my $ospec = $ospecs[$i];
-                push @src, "  # output #$i: $ospec->{_name}\n";
-                push @src, "  {\n";
-                # XXX filter by output's category_level
-
-                # filter by output level
-                if (defined $ospec->{level}) {
-                    push @src, "    last unless ".
-                        Log::ger::Util::numeric_level($ospec->{level}).
-                          " >= $args{level};\n";
-                } else {
-                    # filter by general level
-                    push @src, "  last if \$Log::ger::Current_Level < $args{level};\n";
+                my ($saved_g, $saved_pt);
+                my $loggers = [];
+                # extract the code from each output module's hook, collect them
+                # and call them all in our code
+                for my $ospec (@ospecs) {
+                    my $oname = $ospec->{_name};
+                    my $saved0;
+                    $saved0 = Log::ger::Util::empty_hooks('create_log_routine');
+                    $saved_g ||= $saved0;
+                    if (defined $target) {
+                        $saved0 = Log::ger::Util::empty_per_target_hooks(
+                            $target, $target_arg, 'create_log_routine');
+                        $saved_pt ||= $saved0;
+                    }
+                    my $oconf = $ospec->{args} || {};
+                    Log::ger::Util::set_plugin(
+                        name => $oname,
+                        prefix => 'Log::ger::Output::',
+                        conf => $oconf,
+                        target => $target,
+                        target_arg => $target_arg,
+                    );
+                    my $res = Log::ger::run_hooks(
+                        'create_log_routine', \%args, 1, $target, $target_arg,
+                    );
+                    my $logger = $res or die "Hook from output module '$oname' ".
+                        "didn't produce log routine";
+                    push @$loggers, $logger;
+                }
+                Log::ger::Util::restore_hooks('create_log_routine', $saved_g)
+                      if $saved_g;
+                Log::ger::Util::restore_per_target_hooks(
+                    $target, $target_arg, 'create_log_routine', $saved_pt)
+                      if $saved_pt;
+                unless (@$loggers) {
+                    $Log::err::_logger_is_null = 1;
+                    return [sub {0}];
                 }
 
-                # run output's log routine
-                push @src, "    \$$codes_varname\->[$i]->(\@_);\n";
-                push @src, "  } # output #$i\n\n";
-            }
+                # put the codes in a package so it's addressable from
+                # string-eval'ed code
+                my ($addr) = "$loggers" =~ /\(0x(\w+)/;
+                my $varname = "Log::ger::Stash::$addr";
+                ${$varname} = $loggers;
 
-            push @src, "};\n";
-            my $src = join("", @src);
-            print "D: src for log_$args{str_level}: <<$src>>\n";
+                # generate logger routine
+                my $logger;
+                {
+                    my @src;
+                    push @src, "sub {\n";
 
-            $code = eval $src;
-        }
+                    #push @src, "  my $ctx = $_[0];\n";
 
-        [$code];
+                    # XXX filter by category_level
+
+                    for my $i (0..$#ospecs) {
+                        my $ospec = $ospecs[$i];
+                        push @src, "  # output #$i: $ospec->{_name}\n";
+                        push @src, "  {\n";
+                        # XXX filter by output's category_level
+
+                        # filter by output level
+                        if (defined $ospec->{level}) {
+                            push @src, "    last unless ".
+                                Log::ger::Util::numeric_level($ospec->{level}).
+                                  " >= $args{level};\n";
+                        } else {
+                            # filter by general level
+                            push @src, "  last if \$Log::ger::Current_Level < $args{level};\n";
+                        }
+
+                        # run output's log routine
+                        push @src, "    \$$varname\->[$i]->(\@_);\n";
+                        push @src, "  } # output #$i\n\n";
+                    }
+
+                    push @src, "};\n";
+                    my $src = join("", @src);
+                    #print "D: src for log_$args{str_level}: <<$src>>\n";
+
+                    $logger = eval $src;
+                }
+                [$logger];
+            }]
     };
-
-    # install at very high priority (5) to override the default Log::err
-    # behavior (at priority 10) that installs null routines to high levels. so
-    # we handle all levels.
-    Log::ger::Util::add_plugin(
-        'create_log_routine', [5, $plugin, __PACKAGE__], 'replace');
 }
 
 1;

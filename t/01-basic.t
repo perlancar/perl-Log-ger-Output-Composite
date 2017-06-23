@@ -14,7 +14,7 @@ package main;
 subtest "basics" => sub {
     my $str1 = "";
     my $str2 = "";
-    Log::ger::Util::reset_plugins('create_log_routine');
+    Log::ger::Util::reset_hooks('create_log_routine');
     require Log::ger::Output;
     Log::ger::Output->set('Composite', outputs=>{String=>[ {args=>{string=>\$str1}}, {args=>{string=>\$str2}} ]});
     My::P1::log_warn("warn");
@@ -27,7 +27,7 @@ subtest "per-output level" => sub {
     my $str1 = "";
     my $str2 = "";
     my $str3 = "";
-    Log::ger::Util::reset_plugins('create_log_routine');
+    Log::ger::Util::reset_hooks('create_log_routine');
     require Log::ger::Output;
     Log::ger::Output->set('Composite', outputs=>{String=>[ {args=>{string=>\$str1}}, {level=>"info", args=>{string=>\$str2}}, {level=>"error", args=>{string=>\$str3}} ]});
     My::P1::log_debug("debug");
