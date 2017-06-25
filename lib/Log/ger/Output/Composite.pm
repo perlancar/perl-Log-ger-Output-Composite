@@ -41,7 +41,7 @@ sub get_hooks {
             # levels. so we handle all levels.
             __PACKAGE__, 5,
             sub {
-                no strict 'refs';
+                require Data::Dmp;
 
                 my %args = @_;
 
@@ -91,7 +91,7 @@ sub get_hooks {
                 # string-eval'ed code
                 my ($addr) = "$loggers" =~ /\(0x(\w+)/;
                 my $varname = "Log::ger::Stash::$addr";
-                ${$varname} = $loggers;
+                { no strict 'refs'; ${$varname} = $loggers; }
 
                 # generate logger routine
                 my $logger;
@@ -101,13 +101,23 @@ sub get_hooks {
 
                     #push @src, "  my $ctx = $_[0];\n";
 
-                    # XXX filter by category_level
-
                     for my $i (0..$#ospecs) {
                         my $ospec = $ospecs[$i];
                         push @src, "  # output #$i: $ospec->{_name}\n";
                         push @src, "  {\n";
+
                         # XXX filter by output's category_level
+                        if ($ospec->{category_level}) {
+                            push @src, "    my \$cat = \$_[0]{category} || ".
+                                "'';\n";
+                            for my $cat (sort {length($b) <=> length($a)}
+                                             keys %{$ospec->{category_level}}) {
+                                my $clevel = $ospec->{category_level}{$cat};
+                                push @src, "    if (\$cat eq ".Data::Dmp::dmp($cat)." || index(\$cat, ".Data::Dmp::dmp("$cat\::").") == 0) { ";
+
+                                push @src, " }\n";
+                            }
+                        }
 
                         # filter by output level
                         my ($omin_level, $omax_level);
@@ -138,18 +148,19 @@ sub get_hooks {
                                 "$args{level} <= $omax_level;\n";
                         } else {
                             # filter by general level
-                            push @src, "  last if ".
+                            push @src, "    last if ".
                                 "\$Log::ger::Current_Level < $args{level};\n";
                         }
 
                         # run output's log routine
                         push @src, "    \$$varname\->[$i]->(\@_);\n";
-                        push @src, "  } # output #$i\n\n";
+                        push @src, "  }\n";
+                        push @src, "  # end output #$i\n\n";
                     }
 
                     push @src, "};\n";
                     my $src = join("", @src);
-                    #print "D: src for log_$args{str_level}: <<$src>>\n";
+                    print "D: src for log_$args{str_level}: <<$src>>\n";
 
                     $logger = eval $src;
                 }
@@ -206,8 +217,6 @@ sub get_hooks {
 
 
 =head1 DESCRIPTION
-
-B<EARLY RELEASE>.
 
 This is a L<Log::ger> output that can multiplex output to several outputs and do
 filtering per-category level, per-output level, or per-output per-category
