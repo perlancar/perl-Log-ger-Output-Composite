@@ -1,3 +1,10 @@
+0.004   2017-06-25 (PERLANCAR)
+
+	- No functional changes.
+
+	- [doc] Update/fix documentation.
+
+
 0.003   2017-06-25 (PERLANCAR)
 
         - [Incompatible change] Rename output specification key 'args' to
