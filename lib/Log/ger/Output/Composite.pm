@@ -6,6 +6,22 @@ package Log::ger::Output::Composite;
 use strict;
 use warnings;
 
+sub _get_min_max_level {
+    my $level = shift;
+    my ($min, $max);
+    if (defined $level) {
+        if (ref $level eq 'ARRAY') {
+            $min = Log::ger::Util::numeric_level($level->[0]);
+            $max = Log::ger::Util::numeric_level($level->[1]);
+            ($min, $max) = ($max, $min) if $min > $max;
+        } else {
+            $min = 0;
+            $max = Log::ger::Util::numeric_level($level);
+        }
+    }
+    ($min, $max);
+}
+
 sub get_hooks {
     my %conf = @_;
 
@@ -99,68 +115,64 @@ sub get_hooks {
                     my @src;
                     push @src, "sub {\n";
 
-                    #push @src, "  my $ctx = $_[0];\n";
-
                     for my $i (0..$#ospecs) {
                         my $ospec = $ospecs[$i];
                         push @src, "  # output #$i: $ospec->{_name}\n";
                         push @src, "  {\n";
 
-                        # XXX filter by output's category_level
-                        if ($ospec->{category_level}) {
+                        # filter by output's category_level and category-level
+                        if ($ospec->{category_level} || $conf{category_level}) {
                             push @src, "    my \$cat = \$_[0]{category} || ".
                                 "'';\n";
-                            for my $cat (sort {length($b) <=> length($a)}
-                                             keys %{$ospec->{category_level}}) {
-                                my $clevel = $ospec->{category_level}{$cat};
-                                push @src, "    if (\$cat eq ".Data::Dmp::dmp($cat)." || index(\$cat, ".Data::Dmp::dmp("$cat\::").") == 0) { ";
 
+                            my @cats;
+                            if ($ospec->{category_level}) {
+                                for my $cat (keys %{$ospec->{category_level}}) {
+                                    my $clevel = $ospec->{category_level}{$cat};
+                                    push @cats, [$cat, 1, $clevel];
+                                }
+                            }
+                            if ($conf{category_level}) {
+                                for my $cat (keys %{$conf{category_level}}) {
+                                    my $clevel = $conf{category_level}{$cat};
+                                    push @cats, [$cat, 2, $clevel];
+                                }
+                            }
+
+                            for my $cat (sort {
+                                length($b->[0]) <=> length($a->[0]) ||
+                                    $a->[0] cmp $b->[0] ||
+                                        $a->[1] <=> $b->[1]} @cats) {
+                                push @src, "    if (\$cat eq ".Data::Dmp::dmp($cat->[0])." || index(\$cat, ".Data::Dmp::dmp("$cat->[0]\::").") == 0) { ";
+                                my ($min_level, $max_level) =
+                                    _get_min_max_level($cat->[2]);
+                                push @src, "if ($args{level} >= $min_level && ".
+                                    "$args{level} <= $max_level) { goto L } else { last }";
                                 push @src, " }\n";
                             }
+                            push @src, "\n";
                         }
 
                         # filter by output level
-                        my ($omin_level, $omax_level);
-                        if (defined $ospec->{level}) {
-                            $omin_level = Log::ger::Util::numeric_level(
-                                $ospec->{level});
-                            $omax_level = Log::ger::Util::numeric_level(
-                                'fatal');
-                            ($omin_level, $omax_level) =
-                                ($omax_level, $omin_level)
-                                if $omin_level > $omax_level;
-                        }
-                        if (defined $ospec->{min_level} ||
-                                defined $ospec->{max_level}) {
-                            my $omin = Log::ger::Util::numeric_level(
-                                $ospec->{min_level});
-                            my $omax = Log::ger::Util::numeric_level(
-                                $ospec->{max_level});
-                            ($omin, $omax) = ($omax, $omin) if $omin > $omax;
-                            $omin_level = $omin if
-                                !defined($omin_level) || $omin_level < $omin;
-                            $omax_level = $omax if
-                                !defined($omax_level) || $omax_level > $omin;
-                        }
-                        if (defined $omin_level) {
-                            push @src, "    last unless ".
-                                "$args{level} >= $omin_level && ".
-                                "$args{level} <= $omax_level;\n";
-                        } else {
-                            # filter by general level
-                            push @src, "    last if ".
-                                "\$Log::ger::Current_Level < $args{level};\n";
+                        my ($min_level, $max_level) = _get_min_max_level(
+                            $ospec->{level});
+                        if (defined $min_level) {
+                            push @src, "    if ($args{level} >= $min_level && ".
+                                "$args{level} <= $max_level) { goto L } else { last }\n";
                         }
 
+                        # filter by general level
+                        push @src, "    if (\$Log::ger::Current_Level >= $args{level}) { goto L } else { last }\n";
+
                         # run output's log routine
-                        push @src, "    \$$varname\->[$i]->(\@_);\n";
+                        push @src, "    L: \$$varname\->[$i]->(\@_);\n";
                         push @src, "  }\n";
                         push @src, "  # end output #$i\n\n";
-                    }
+                    } # for ospec
 
                     push @src, "};\n";
                     my $src = join("", @src);
-                    print "D: src for log_$args{str_level}: <<$src>>\n";
+                    #print "D: src for log_$args{str_level}: <<$src>>\n";
 
                     $logger = eval $src;
                 }
@@ -245,7 +257,7 @@ hashref keys:
 Specify output configuration. See each output documentation for the list of
 available configuration parameters.
 
-=item * level => str|int
+=item * level => str|int|[min, max]
 
 Specify per-output level. If specified, logging will be done at this level
 instead of the general level. For example, if this is set to C<debug> then debug
@@ -254,19 +266,10 @@ C<warn>. Vice versa, if this is set to C<error> then even though the general
 level is C<warn>, warning messages won't be sent to this output; only C<error>
 messages and higher will be sent.
 
-=item * min_level => str|int
-
-=item * max_level => str|int
-
-As an alternative to setting C<level>, you can set C<min_level> and C<max_level>
-instead. This also sets per-output level. Setting C<level> to C<info> is
-actually equivalent to:
-
- min_level => 'info'
- max_level => 'trace'
-
-If you accidentally mix up min_level and max_level, this module will helpfully
-fix it for you.
+You can specify a single level (e.g. 1 or "trace") or a two-element array to
+specify minimum and maximum level (e.g. C<<["trace", "info"]>>). If you
+accidentally mix up minimum and maximum, this module will helpfully fix it for
+you.
 
 =back
 
