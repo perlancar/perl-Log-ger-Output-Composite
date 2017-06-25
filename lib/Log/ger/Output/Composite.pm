@@ -192,7 +192,7 @@ sub get_hooks {
      outputs => {
          # single screen output
          Screen => {
-             level => 'info', # set mper-output level. optional.
+             level => 'info', # set per-output level. optional.
              conf => { use_color=>1 },
          },
          # multiple file outputs
@@ -203,7 +203,7 @@ sub get_hooks {
                  # set per-category, per-output level. optional.
                  category_level => {
                      # don't log myapp.security messages to this file
-                     'myapp.security' => 'off',
+                     'MyApp::Security' => 'off',
                  },
              },
              {
@@ -211,15 +211,15 @@ sub get_hooks {
                  level => 'warn',
                  category_level => {
                      # only myapp.security messages go to this file
-                     'myapp.security' => 'warn',
+                     'MyApp::Security' => 'warn',
                  },
              },
          ],
      },
      # set per-category level. optional.
      category_level => {
-        'category1.sub1' => 'info',
-        'category2' => 'debug',
+        'MyApp::SubModule1' => 'info',
+        'MyApp::SubModule2' => 'debug',
         ...
      },
  );
@@ -231,8 +231,8 @@ sub get_hooks {
 =head1 DESCRIPTION
 
 This is a L<Log::ger> output that can multiplex output to several outputs and do
-filtering per-category level, per-output level, or per-output per-category
-level.
+filtering on the basis of per-category level, per-output level, or per-output
+per-category level.
 
 
 =head1 CONFIGURATION
@@ -271,23 +271,22 @@ specify minimum and maximum level (e.g. C<<["trace", "info"]>>). If you
 accidentally mix up minimum and maximum, this module will helpfully fix it for
 you.
 
+=item * category_level => hash
+
+Specify per-output per-category level. Hash key is category name, value is level
+(which can be a string/numeric level or a two-element array containing minimum
+and maximum level).
+
 =back
 
 =head2 category_level => hash
 
-=head2
-
-
-=head1 TODO
-
-Per-category level has not been implemented.
-
-Per-output per-category level has not been implemented.
+Specify per-category level. Hash key is category name, value is level (which can
+be a string/numeric level or a two-element array containing minimum and maximum
+level).
 
 
 =head1 ENVIRONMENT
 
 
 =head1 SEE ALSO
-
-Modelled after L<Log::Any::App>.
