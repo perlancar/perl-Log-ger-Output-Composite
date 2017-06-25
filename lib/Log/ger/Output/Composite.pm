@@ -73,8 +73,8 @@ sub get_hooks {
                     my $res = Log::ger::run_hooks(
                         'create_log_routine', \%args, 1, $target, $target_arg,
                     );
-                    my $logger = $res or die "Hook from output module '$oname' ".
-                        "didn't produce log routine";
+                    my $logger = $res or die "Hook from output module ".
+                        "'$oname' didn't produce log routine";
                     push @$loggers, $logger;
                 }
                 Log::ger::Util::restore_hooks('create_log_routine', $saved_g)
@@ -116,7 +116,8 @@ sub get_hooks {
                                   " >= $args{level};\n";
                         } else {
                             # filter by general level
-                            push @src, "  last if \$Log::ger::Current_Level < $args{level};\n";
+                            push @src, "  last if ".
+                                "\$Log::ger::Current_Level < $args{level};\n";
                         }
 
                         # run output's log routine
@@ -187,7 +188,7 @@ sub get_hooks {
 B<EARLY RELEASE>.
 
 This is a L<Log::ger> output that can multiplex output to multiple outputs and
-do filtering using per-category level, per-output level, or per-output
+do filtering using category, per-category level, per-output level, or per-output
 per-category level.
 
 
