@@ -62,7 +62,7 @@ sub get_hooks {
                             $target, $target_arg, 'create_log_routine');
                         $saved_pt ||= $saved0;
                     }
-                    my $oconf = $ospec->{args} || {};
+                    my $oconf = $ospec->{conf} || {};
                     Log::ger::Util::set_plugin(
                         name => $oname,
                         prefix => 'Log::ger::Output::',
@@ -110,10 +110,32 @@ sub get_hooks {
                         # XXX filter by output's category_level
 
                         # filter by output level
+                        my ($omin_level, $omax_level);
                         if (defined $ospec->{level}) {
+                            $omin_level = Log::ger::Util::numeric_level(
+                                $ospec->{level});
+                            $omax_level = Log::ger::Util::numeric_level(
+                                'fatal');
+                            ($omin_level, $omax_level) =
+                                ($omax_level, $omin_level)
+                                if $omin_level > $omax_level;
+                        }
+                        if (defined $ospec->{min_level} ||
+                                defined $ospec->{max_level}) {
+                            my $omin = Log::ger::Util::numeric_level(
+                                $ospec->{min_level});
+                            my $omax = Log::ger::Util::numeric_level(
+                                $ospec->{max_level});
+                            ($omin, $omax) = ($omax, $omin) if $omin > $omax;
+                            $omin_level = $omin if
+                                !defined($omin_level) || $omin_level < $omin;
+                            $omax_level = $omax if
+                                !defined($omax_level) || $omax_level > $omin;
+                        }
+                        if (defined $omin_level) {
                             push @src, "    last unless ".
-                                Log::ger::Util::numeric_level($ospec->{level}).
-                                  " >= $args{level};\n";
+                                "$args{level} >= $omin_level && ".
+                                "$args{level} <= $omax_level;\n";
                         } else {
                             # filter by general level
                             push @src, "  last if ".
@@ -148,22 +170,22 @@ sub get_hooks {
          # single screen output
          Screen => {
              level => 'info', # set mper-output level. optional.
-             args => { use_color=>1 },
+             conf => { use_color=>1 },
          },
          # multiple file outputs
          File   => [
              {
+                 conf => { path=>'/var/log/myapp.log' },
                  level => 'warn',
                  # set per-category, per-output level. optional.
                  category_level => {
                      # don't log myapp.security messages to this file
                      'myapp.security' => 'off',
                  },
-                 args => { path=>'/var/log/myapp.log' },
              },
              {
-                 path => '/var/log/myapp-security.log',
-                 level => 'off',
+                 conf => { path => '/var/log/myapp-security.log' },
+                 level => 'warn',
                  category_level => {
                      # only myapp.security messages go to this file
                      'myapp.security' => 'warn',
@@ -187,14 +209,57 @@ sub get_hooks {
 
 B<EARLY RELEASE>.
 
-This is a L<Log::ger> output that can multiplex output to multiple outputs and
-do filtering using category, per-category level, per-output level, or per-output
-per-category level.
+This is a L<Log::ger> output that can multiplex output to several outputs and do
+filtering per-category level, per-output level, or per-output per-category
+level.
 
 
 =head1 CONFIGURATION
 
 =head2 outputs => hash
+
+Specify outputs. It's a hash with output name as keys and output specification
+as values.
+
+Output name is the name of output module without the C<Log::ger::Output::>
+prefix, e.g. L<Screen|Log::ger::Output::Screen> or
+L<File||Log::ger::Output::File>.
+
+Output specification is either a hashref or arrayref of hashrefs to specify
+multiple outputs per type (e.g. if you want to output to two File's). Known
+hashref keys:
+
+=over
+
+=item * conf => hashref
+
+Specify output configuration. See each output documentation for the list of
+available configuration parameters.
+
+=item * level => str|int
+
+Specify per-output level. If specified, logging will be done at this level
+instead of the general level. For example, if this is set to C<debug> then debug
+messages and higher will be sent to output even though the general level is
+C<warn>. Vice versa, if this is set to C<error> then even though the general
+level is C<warn>, warning messages won't be sent to this output; only C<error>
+messages and higher will be sent.
+
+=item * min_level => str|int
+
+=item * max_level => str|int
+
+As an alternative to setting C<level>, you can set C<min_level> and C<max_level>
+instead. This also sets per-output level. Setting C<level> to C<info> is
+actually equivalent to:
+
+ min_level => 'info'
+ max_level => 'trace'
+
+If you accidentally mix up min_level and max_level, this module will helpfully
+fix it for you.
+
+=back
 
 =head2 category_level => hash
 
