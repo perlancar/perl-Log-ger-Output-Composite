@@ -78,6 +78,7 @@ sub get_hooks {
                         target => $args{target},
                         target_arg => $args{target_arg},
                         init_args => $args{init_args},
+                        level => $args{level},
                     );
                     my $res = $hooks->{create_log_routine}->[2]->(@hook_args)
                         or die "Hook from output module $mod does not produce ".
