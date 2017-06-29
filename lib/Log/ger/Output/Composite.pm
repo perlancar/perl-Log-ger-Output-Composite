@@ -57,6 +57,7 @@ sub get_hooks {
             # levels. so we handle all levels.
             __PACKAGE__, 5,
             sub {
+                no strict 'refs';
                 require Data::Dmp;
 
                 my %args = @_;
@@ -64,40 +65,28 @@ sub get_hooks {
                 my $target = $args{target};
                 my $target_arg = $args{target_arg};
 
-                my ($saved_g, $saved_pt);
                 my $loggers = [];
-                # extract the code from each output module's hook, collect them
-                # and call them all in our code
                 for my $ospec (@ospecs) {
                     my $oname = $ospec->{_name};
-                    my $saved0;
-                    $saved0 = Log::ger::Util::empty_hooks('create_log_routine');
-                    $saved_g ||= $saved0;
-                    if (defined $target) {
-                        $saved0 = Log::ger::Util::empty_per_target_hooks(
-                            $target, $target_arg, 'create_log_routine');
-                        $saved_pt ||= $saved0;
-                    }
-                    my $oconf = $ospec->{conf} || {};
-                    Log::ger::Util::set_plugin(
-                        name => $oname,
-                        prefix => 'Log::ger::Output::',
-                        conf => $oconf,
-                        target => $target,
-                        target_arg => $target_arg,
+                    my $mod = "Log::ger::Output::$oname";
+                    my $hooks = &{"$mod\::get_hooks"}(%{ $ospec->{conf} || {} })
+                        or die "Output module $mod does not return any hooks";
+                    $hooks->{create_log_routine}
+                        or die "Output module $mod does not declare ".
+                        "create_log_routine hook";
+                    my @hook_args = (
+                        target => $args{target},
+                        target_arg => $args{target_arg},
+                        init_args => $args{init_args},
                     );
-                    my $res = Log::ger::run_hooks(
-                        'create_log_routine', \%args, 1, $target, $target_arg,
-                    );
-                    my $logger = $res or die "Hook from output module ".
-                        "'$oname' didn't produce log routine";
-                    push @$loggers, $logger;
+                    my $res = $hooks->{create_log_routine}->[2]->(@hook_args)
+                        or die "Hook from output module $mod does not produce ".
+                        "log routine";
+                    ref $res->[0] eq 'CODE'
+                        or die "Logger from output module $mod ".
+                        "is not a coderef";
+                    push @$loggers, $res->[0];
                 }
-                Log::ger::Util::restore_hooks('create_log_routine', $saved_g)
-                      if $saved_g;
-                Log::ger::Util::restore_per_target_hooks(
-                    $target, $target_arg, 'create_log_routine', $saved_pt)
-                      if $saved_pt;
                 unless (@$loggers) {
                     $Log::err::_logger_is_null = 1;
                     return [sub {0}];
@@ -109,7 +98,7 @@ sub get_hooks {
                 my $varname = "Log::ger::Stash::$addr";
                 { no strict 'refs'; ${$varname} = $loggers; }
 
-                # generate logger routine
+                # generate our logger routine
                 my $logger;
                 {
                     my @src;
