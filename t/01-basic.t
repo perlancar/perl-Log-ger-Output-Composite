@@ -236,5 +236,21 @@ subtest "per-output, per-category level" => sub {
 
 };
 
+subtest "per-output layout" => sub {
+    my $str1 = "";
+    my $str2 = "";
+    Log::ger::Output->set(
+        'Composite',
+        outputs=>{
+            String=>[
+                {conf=>{string=>\$str1}, layout=>[Pattern=>{format=>"[%p] %m"}]},
+                {conf=>{string=>\$str2}},
+            ],
+        });
+    My::P1::log_warn("warnmsg");
+    My::P1::log_debug("debugmsg");
+    is($str1, "[warn] warnmsg\n");
+    is($str2, "warnmsg\n");
+};
 
 done_testing;

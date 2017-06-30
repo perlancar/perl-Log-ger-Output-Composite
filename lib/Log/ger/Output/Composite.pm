@@ -66,6 +66,7 @@ sub get_hooks {
                 my $target_arg = $args{target_arg};
 
                 my $loggers = [];
+                my $layouters = [];
                 for my $ospec (@ospecs) {
                     my $oname = $ospec->{_name};
                     my $mod = "Log::ger::Output::$oname";
@@ -87,17 +88,50 @@ sub get_hooks {
                         or die "Logger from output module $mod ".
                         "is not a coderef";
                     push @$loggers, $res->[0];
+                    if ($ospec->{layout}) {
+                        my $lname = $ospec->{layout}[0];
+                        my $lconf = $ospec->{layout}[1] || {};
+                        my $lmod  = "Log::ger::Layout::$lname";
+                        (my $lmod_pm = "$lmod.pm") =~ s!::!/!g;
+                        require $lmod_pm;
+                        my $lhooks = &{"$lmod\::get_hooks"}(%$lconf)
+                            or die "Layout module $lmod does not return ".
+                            "any hooks";
+                        $lhooks->{create_layouter}
+                            or die "Layout module $mod does not declare ".
+                            "layouter";
+                        my @lhook_args = (
+                            target => $args{target},
+                            target_arg => $args{target_arg},
+                            init_args => $args{init_args},
+                        );
+                        my $lres = $lhooks->{create_layouter}->[2]->(
+                            @lhook_args) or die "Hook from layout module ".
+                                "$lmod does not produce layout routine";
+                        ref $lres->[0] eq 'CODE'
+                            or die "Layouter from layout module $lmod ".
+                            "is not a coderef";
+                        push @$layouters, $lres->[0];
+                    } else {
+                        push @$layouters, undef;
+                    }
                 }
                 unless (@$loggers) {
                     $Log::err::_logger_is_null = 1;
                     return [sub {0}];
                 }
 
-                # put the codes in a package so it's addressable from
-                # string-eval'ed code
+                # put the data that are mentioned in string-eval'ed code in a
+                # package so they are addressable
                 my ($addr) = "$loggers" =~ /\(0x(\w+)/;
                 my $varname = "Log::ger::Stash::$addr";
-                { no strict 'refs'; ${$varname} = $loggers; }
+                {
+                    no strict 'refs';
+                    ${$varname} = [];
+                    ${$varname}->[0] = $loggers;
+                    ${$varname}->[1] = $layouters;
+                    ${$varname}->[2] = $args{init_args};
+                }
 
                 # generate our logger routine
                 my $logger;
@@ -155,7 +189,7 @@ sub get_hooks {
                         push @src, "    if (\$Log::ger::Current_Level >= $args{level}) { goto L } else { last }\n";
 
                         # run output's log routine
-                        push @src, "    L: \$$varname\->[$i]->(\@_);\n";
+                        push @src, "    L: if (\$$varname\->[1][$i]) { \$$varname\->[0][$i]->(\$_[0], \$$varname\->[1][$i]->(\$_[1], \$$varname\->[2], $args{level}, '$args{str_level}')) } else { \$$varname\->[0][$i]->(\@_) }\n";
                         push @src, "  }\n";
                         push @src, "  # end output #$i\n\n";
                     } # for ospec
@@ -182,32 +216,34 @@ sub get_hooks {
      outputs => {
          # single screen output
          Screen => {
-             level => 'info', # set per-output level. optional.
-             conf => { use_color=>1 },
+             conf   => { use_color=>1 },                        # output config, optional.
+             level  => 'info',                                  # set per-output level. optional.
+             layout => [Pattern => {format=>'%d (%F:%L)> %m'}], # add per-output layout, optional.
          },
          # multiple file outputs
-         File   => [
+         File => [
              {
-                 conf => { path=>'/var/log/myapp.log' },
+                 conf  => { path=>'/var/log/myapp.log' },
                  level => 'warn',
-                 # set per-category, per-output level. optional.
-                 category_level => {
-                     # don't log myapp.security messages to this file
+                 category_level => {                            # set per-category, per-output level. optional.
+                     # don't log MyApp::Security messages to this file
                      'MyApp::Security' => 'off',
+                     ...
                  },
              },
              {
                  conf => { path => '/var/log/myapp-security.log' },
                  level => 'warn',
                  category_level => {
-                     # only myapp.security messages go to this file
+                     # only MyApp::Security messages go to this file
                      'MyApp::Security' => 'warn',
+                     ...
                  },
              },
          ],
      },
-     # set per-category level. optional.
-     category_level => {
+     category_level => {                                        # set per-category level. optional.
+
         'MyApp::SubModule1' => 'info',
         'MyApp::SubModule2' => 'debug',
         ...
@@ -222,7 +258,7 @@ sub get_hooks {
 
 This is a L<Log::ger> output that can multiplex output to several outputs and do
 filtering on the basis of per-category level, per-output level, or per-output
-per-category level.
+per-category level. It can also apply per-output layout.
 
 
 =head1 CONFIGURATION
@@ -234,7 +270,7 @@ as values.
 
 Output name is the name of output module without the C<Log::ger::Output::>
 prefix, e.g. L<Screen|Log::ger::Output::Screen> or
-L<File||Log::ger::Output::File>.
+L<File|Log::ger::Output::File>.
 
 Output specification is either a hashref or arrayref of hashrefs to specify
 multiple outputs per type (e.g. if you want to output to two File's). Known
@@ -244,15 +280,15 @@ hashref keys:
 
 =item * conf => hashref
 
-Specify output configuration. See each output documentation for the list of
-available configuration parameters.
+Specify output configuration. Optional. See each output documentation for the
+list of available configuration parameters.
 
 =item * level => str|int|[min, max]
 
-Specify per-output level. If specified, logging will be done at this level
-instead of the general level. For example, if this is set to C<debug> then debug
-messages and higher will be sent to output even though the general level is
-C<warn>. Vice versa, if this is set to C<error> then even though the general
+Specify per-output level. Optional. If specified, logging will be done at this
+level instead of the general level. For example, if this is set to C<debug> then
+debug messages and higher will be sent to output even though the general level
+is C<warn>. Vice versa, if this is set to C<error> then even though the general
 level is C<warn>, warning messages won't be sent to this output; only C<error>
 messages and higher will be sent.
 
@@ -263,17 +299,33 @@ you.
 
 =item * category_level => hash
 
-Specify per-output per-category level. Hash key is category name, value is level
-(which can be a string/numeric level or a two-element array containing minimum
-and maximum level).
+Specify per-output per-category level. Optional. Hash key is category name,
+value is level (which can be a string/numeric level or a two-element array
+containing minimum and maximum level).
+
+=item * layout => [Name => {conf1=>..., conf2=>..., ...}]
+
+Specify per-output layout. Optional. Value is two-element array containing
+layout name (without the C<Log::ger::Layout::> prefix, e.g.
+L<Pattern|Log::ger::Layout::Pattern>) and configuration hash. See each layout
+module documentation for the list of available configuration parameters.
+
+Note that if you also use a layout module outside of Composite configuration,
+e.g.:
+
+ use Log::ger::Output Composite => (...);
+ use Log::ger::Layout Pattern => (format => '...');
+
+then both layouts will be applied, the general layout will be applied before the
+per-output layout.
 
 =back
 
 =head2 category_level => hash
 
-Specify per-category level. Hash key is category name, value is level (which can
-be a string/numeric level or a two-element array containing minimum and maximum
-level).
+Specify per-category level. Optional. Hash key is category name, value is level
+(which can be a string/numeric level or a two-element array containing minimum
+and maximum level).
 
 
 =head1 ENVIRONMENT
