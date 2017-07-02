@@ -51,11 +51,8 @@ sub get_hooks {
     }
 
     return {
-        'create_log_routine' => [
-            # install at very high priority (5) to override the default Log::ger
-            # behavior (at priority 10) that installs null routines to high
-            # levels. so we handle all levels.
-            __PACKAGE__, 5,
+        'create_logml_routine' => [
+            __PACKAGE__, 50,
             sub {
                 no strict 'refs';
                 require Data::Dmp;
@@ -66,28 +63,43 @@ sub get_hooks {
                 my $target_arg = $args{target_arg};
 
                 my $loggers = [];
+                my $logger_is_ml = [];
                 my $layouters = [];
                 for my $ospec (@ospecs) {
                     my $oname = $ospec->{_name};
                     my $mod = "Log::ger::Output::$oname";
                     my $hooks = &{"$mod\::get_hooks"}(%{ $ospec->{conf} || {} })
                         or die "Output module $mod does not return any hooks";
-                    $hooks->{create_log_routine}
-                        or die "Output module $mod does not declare ".
-                        "create_log_routine hook";
                     my @hook_args = (
                         target => $args{target},
                         target_arg => $args{target_arg},
                         init_args => $args{init_args},
-                        level => $args{level},
                     );
-                    my $res = $hooks->{create_log_routine}->[2]->(@hook_args)
-                        or die "Hook from output module $mod does not produce ".
-                        "log routine";
-                    ref $res->[0] eq 'CODE'
-                        or die "Logger from output module $mod ".
-                        "is not a coderef";
-                    push @$loggers, $res->[0];
+                    my $res;
+                    {
+                        if ($hooks->{create_logml_routine}) {
+                            $res = $hooks->{create_logml_routine}->[2]->(
+                                @hook_args);
+                            if ($res->[0]) {
+                                push @$loggers, $res->[0];
+                                push @$logger_is_ml, 1;
+                                last;
+                            }
+                        }
+                        push @hook_args, (level => 6, str_level => 'trace');
+                        if ($hooks->{create_log_routine}) {
+                            $res = $hooks->{create_log_routine}->[2]->(
+                                @hook_args);
+                            if ($res->[0]) {
+                                push @$loggers, $res->[0];
+                                push @$logger_is_ml, 0;
+                                last;
+                            }
+                        }
+                        die "Output module $mod does not produce logger in ".
+                            "its create_logml_routine nor create_log_routine ".
+                                "hook";
+                    }
                     if ($ospec->{layout}) {
                         my $lname = $ospec->{layout}[0];
                         my $lconf = $ospec->{layout}[1] || {};
@@ -138,6 +150,7 @@ sub get_hooks {
                 {
                     my @src;
                     push @src, "sub {\n";
+                    push @src, "  my (\$ctx, \$lvl, \$msg) = \@_;\n";
 
                     for my $i (0..$#ospecs) {
                         my $ospec = $ospecs[$i];
@@ -146,7 +159,7 @@ sub get_hooks {
 
                         # filter by output's category_level and category-level
                         if ($ospec->{category_level} || $conf{category_level}) {
-                            push @src, "    my \$cat = \$_[0]{category} || ".
+                            push @src, "    my \$cat = \$ctx->{category} || ".
                                 "'';\n";
 
                             my @cats;
@@ -170,8 +183,8 @@ sub get_hooks {
                                 push @src, "    if (\$cat eq ".Data::Dmp::dmp($cat->[0])." || index(\$cat, ".Data::Dmp::dmp("$cat->[0]\::").") == 0) { ";
                                 my ($min_level, $max_level) =
                                     _get_min_max_level($cat->[2]);
-                                push @src, "if ($args{level} >= $min_level && ".
-                                    "$args{level} <= $max_level) { goto L } else { last }";
+                                push @src, "if (\$lvl >= $min_level && ".
+                                    "\$lvl <= $max_level) { goto L } else { last }";
                                 push @src, " }\n";
                             }
                             push @src, "\n";
@@ -181,22 +194,26 @@ sub get_hooks {
                         my ($min_level, $max_level) = _get_min_max_level(
                             $ospec->{level});
                         if (defined $min_level) {
-                            push @src, "    if ($args{level} >= $min_level && ".
-                                "$args{level} <= $max_level) { goto L } else { last }\n";
+                            push @src, "    if (\$lvl >= $min_level && ".
+                                "\$lvl <= $max_level) { goto L } else { last }\n";
                         }
 
                         # filter by general level
-                        push @src, "    if (\$Log::ger::Current_Level >= $args{level}) { goto L } else { last }\n";
+                        push @src, "    if (\$Log::ger::Current_Level >= \$lvl) { goto L } else { last }\n";
 
                         # run output's log routine
-                        push @src, "    L: if (\$$varname\->[1][$i]) { \$$varname\->[0][$i]->(\$_[0], \$$varname\->[1][$i]->(\$_[1], \$$varname\->[2], $args{level}, '$args{str_level}')) } else { \$$varname\->[0][$i]->(\@_) }\n";
+                        if ($logger_is_ml->[$i]) {
+                            push @src, "    L: if (\$$varname\->[1][$i]) { \$$varname\->[0][$i]->(\$ctx, \$lvl, \$$varname\->[1][$i]->(\$msg, \$$varname\->[2], \$lvl, Log::ger::Util::string_level(\$lvl))) } else { \$$varname\->[0][$i]->(\$ctx, \$lvl, \$msg) }\n";
+                        } else {
+                            push @src, "    L: if (\$$varname\->[1][$i]) { \$$varname\->[0][$i]->(\$ctx,        \$$varname\->[1][$i]->(\$msg, \$$varname\->[2], \$lvl, Log::ger::Util::string_level(\$lvl))) } else { \$$varname\->[0][$i]->(\$ctx,        \$msg) }\n";
+                        }
                         push @src, "  }\n";
                         push @src, "  # end output #$i\n\n";
                     } # for ospec
 
                     push @src, "};\n";
                     my $src = join("", @src);
-                    #print "D: src for log_$args{str_level}: <<$src>>\n";
+                    #print "D: logger source code: <<$src>>\n";
 
                     $logger = eval $src;
                 }
