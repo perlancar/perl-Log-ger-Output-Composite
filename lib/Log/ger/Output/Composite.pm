@@ -135,8 +135,15 @@ sub get_hooks {
 
                 # put the data that are mentioned in string-eval'ed code in a
                 # package so they are addressable
-                my ($addr) = "$loggers" =~ /\(0x(\w+)/;
-                my $varname = "Log::ger::Stash::$addr";
+                my $varname = do {
+                    my $suffix;
+                    if ($args{target} eq 'package') {
+                        $suffix = $args{target_arg};
+                    } else {
+                        ($suffix) = "$args{target_arg}" =~ /\(0x(\w+)/;
+                    }
+                    "Log::ger::Stash::OComposite_$suffix";
+                };
                 {
                     no strict 'refs';
                     ${$varname} = [];
