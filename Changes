@@ -1,3 +1,8 @@
+0.007   2017-07-02 (PERLANCAR)
+
+	- [Bugfix] Fix leak by using per-target variable name.
+
+
 0.006   2017-07-02 (PERLANCAR)
 
 	- [optimize] Convert to returning a multilevel log.
