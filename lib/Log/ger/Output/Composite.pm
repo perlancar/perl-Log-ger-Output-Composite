@@ -267,7 +267,6 @@ sub get_hooks {
          ],
      },
      category_level => {                                        # set per-category level. optional.
-
         'MyApp::SubModule1' => 'info',
         'MyApp::SubModule2' => 'debug',
         ...
