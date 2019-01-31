@@ -37,7 +37,7 @@ sub get_hooks {
                     }
                 }
             }
-        } elsif ($k =~ /\A(layout|category_level)\z/) {
+        } elsif ($k =~ /\A(category_level)\z/) {
         } else {
             die "Unknown configuration: '$k'";
         }
