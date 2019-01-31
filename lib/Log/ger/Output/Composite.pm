@@ -30,10 +30,13 @@ sub get_hooks {
         my $conf = $conf{$k};
         if ($k eq 'outputs') {
             for my $o (keys %$conf) {
-                my $oconf = $conf->{$o};
-                for my $k2 (keys %$oconf) {
-                    unless ($k2 =~ /\A(conf|level|category_level|layout)\z/) {
-                        die "Unknown configuration for output '$o': '$k'";
+                for my $oconf (ref $conf->{$o} eq 'ARRAY' ?
+                                   @{ $conf->{$o} } : $conf->{$o}) {
+                    for my $k2 (keys %$oconf) {
+                        unless ($k2 =~
+                                    /\A(conf|level|category_level|layout)\z/) {
+                            die "Unknown configuration for output '$o': '$k2'";
+                        }
                     }
                 }
             }
