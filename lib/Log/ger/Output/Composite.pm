@@ -25,6 +25,24 @@ sub _get_min_max_level {
 sub get_hooks {
     my %conf = @_;
 
+    # check arguments
+    for my $k (keys %conf) {
+        my $conf = $conf{$k};
+        if ($k eq 'outputs') {
+            for my $o (keys %$conf) {
+                my $oconf = $conf->{$o};
+                for my $k2 (keys %$oconf) {
+                    unless ($k2 =~ /\A(conf|level|category_level|layout)\z/) {
+                        die "Unknown configuration for output '$o': '$k'";
+                    }
+                }
+            }
+        } elsif ($k =~ /\A(layout|category_level)\z/) {
+        } else {
+            die "Unknown configuration: '$k'";
+        }
+    }
+
     my @ospecs;
     {
         my $outputs = $conf{outputs};
