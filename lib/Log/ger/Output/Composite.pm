@@ -387,7 +387,7 @@ and maximum level).
 
 =head1 FAQS
 
-=head2 Why doesn't re-setting log level (using Log::ger::Util::set_level) work?
+=head2 Why doesn't re-setting log level using Log::ger::Util::set_level() work?
 
 This output plugin sets its own levels and logs using a multilevel routine
 (which gets called for all levels). Re-setting log level dynamically via
