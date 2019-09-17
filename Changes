@@ -1,3 +1,9 @@
+0.009   2019-09-17  Released-By: PERLANCAR; Urgency: medium
+
+	- Introduce set_level() as an easy way to re-set all output levels
+	  to this value.
+
+
 0.008   2019-01-31  Released-By: PERLANCAR
 
 	- No functional changes.
