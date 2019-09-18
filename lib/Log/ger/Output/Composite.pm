@@ -387,7 +387,7 @@ and maximum level).
 
 =head1 FAQS
 
-=head2 Why does re-setting log level (using Log::ger::Util::set_level) doesn't work?
+=head2 Why doesn't re-setting log level using Log::ger::Util::set_level() work?
 
 This output plugin sets its own levels and logs using a multilevel routine
 (which gets called for all levels). Re-setting log level dynamically via
@@ -401,7 +401,21 @@ C<Log::ger::Output::Composite::set_level>, for example:
  Log::ger::Output::Composite::set_level('trace');
 
 This sets an internal level setting which is respected and has the highest
-precedence so all levels settings will use this instead.
+precedence so all levels settings will use this instead. If previously you have:
+
+ Log::ger::Output->set(Composite => {
+     default_level => 'error',
+     outputs => {
+         File => {path=>'/foo', level=>'debug'},
+         Screen => {level=>'info', category_level=>{MyApp=>'warn'}},
+     },
+     category_level => {
+         'MyApp::SubModule1' => 'debug',
+     },
+ });
+
+then after the C<Log::ger::Output::Composite::set_level('trace')>, all the above
+per-category and per-output levels will be set to C<trace>.
 
 
 =head1 ENVIRONMENT
