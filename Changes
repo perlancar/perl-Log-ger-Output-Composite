@@ -1,3 +1,10 @@
+0.010   2019-09-18  Released-By: PERLANCAR; Urgency: low
+
+	- No functional changes.
+
+	- [doc] Add example to FAQ item, grammar fixes.
+
+
 0.009   2019-09-17  Released-By: PERLANCAR; Urgency: medium
 
 	- Introduce set_level() as an easy way to re-set level of all outputs
