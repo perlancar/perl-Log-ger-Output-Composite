@@ -80,16 +80,17 @@ sub get_hooks {
     }
 
     return {
-        'create_logml_routine' => [
-            __PACKAGE__, 50,
-            sub {
+        create_logml_routine => [
+            __PACKAGE__, # key
+            50,          # priority
+            sub {        # hook
                 no strict 'refs';
                 require Data::Dmp;
 
-                my %args = @_;
+                my %hook_args = @_;
 
-                my $target = $args{target};
-                my $target_arg = $args{target_arg};
+                my $target = $hook_args{target};
+                my $target_arg = $hook_args{target_arg};
 
                 my $loggers = [];
                 my $logger_is_ml = [];
@@ -100,9 +101,9 @@ sub get_hooks {
                     my $hooks = &{"$mod\::get_hooks"}(%{ $ospec->{conf} || {} })
                         or die "Output module $mod does not return any hooks";
                     my @hook_args = (
-                        target => $args{target},
-                        target_arg => $args{target_arg},
-                        init_args => $args{init_args},
+                        target => $hook_args{target},
+                        target_arg => $hook_args{target_arg},
+                        init_args => $hook_args{init_args},
                     );
                     my $res;
                     {
@@ -142,9 +143,9 @@ sub get_hooks {
                             or die "Layout module $mod does not declare ".
                             "layouter";
                         my @lhook_args = (
-                            target => $args{target},
-                            target_arg => $args{target_arg},
-                            init_args => $args{init_args},
+                            target => $hook_args{target},
+                            target_arg => $hook_args{target_arg},
+                            init_args => $hook_args{init_args},
                         );
                         my $lres = $lhooks->{create_layouter}->[2]->(
                             @lhook_args) or die "Hook from layout module ".
@@ -166,10 +167,10 @@ sub get_hooks {
                 # package so they are addressable
                 my $varname = do {
                     my $suffix;
-                    if ($args{target} eq 'package') {
-                        $suffix = $args{target_arg};
+                    if ($hook_args{target} eq 'package') {
+                        $suffix = $hook_args{target_arg};
                     } else {
-                        ($suffix) = "$args{target_arg}" =~ /\(0x(\w+)/;
+                        ($suffix) = "$hook_args{target_arg}" =~ /\(0x(\w+)/;
                     }
                     "Log::ger::Stash::OComposite_$suffix";
                 };
@@ -178,7 +179,7 @@ sub get_hooks {
                     ${$varname} = [];
                     ${$varname}->[0] = $loggers;
                     ${$varname}->[1] = $layouters;
-                    ${$varname}->[2] = $args{init_args};
+                    ${$varname}->[2] = $hook_args{init_args};
                 }
 
                 # generate our logger routine
@@ -254,7 +255,7 @@ sub get_hooks {
                     $logger = eval $src;
                 }
                 [$logger];
-            }]
+            }] # hook record
     };
 }
 
