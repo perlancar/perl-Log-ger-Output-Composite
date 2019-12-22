@@ -87,7 +87,7 @@ sub get_hooks {
                 no strict 'refs';
                 require Data::Dmp;
 
-                my %hook_args = @_;
+                my %hook_args = @_; # see Log::ger::Manual::Internals/"Arguments passed to hook"
 
                 my $target = $hook_args{target};
                 my $target_arg = $hook_args{target_arg};
