@@ -159,7 +159,7 @@ sub get_hooks {
                     }
                 }
                 unless (@$loggers) {
-                    $Log::err::_logger_is_null = 1;
+                    $Log::ger::_logger_is_null = 1;
                     return [sub {0}];
                 }
 
