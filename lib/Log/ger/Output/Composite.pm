@@ -250,7 +250,9 @@ sub get_hooks {
 
                     push @src, "};\n";
                     my $src = join("", @src);
-                    #print "D: logger source code: <<$src>>\n";
+                    if ($ENV{LOG_LOG_GER_OUTPUT_COMPOSITE_CODE}) {
+                        print STDERR "Log::ger::Output::Composite logger source code: <<$src>>\n";
+                    }
 
                     $logger = eval $src;
                 }
@@ -420,6 +422,10 @@ per-category and per-output levels will be set to C<trace>.
 
 
 =head1 ENVIRONMENT
+
+=head2 LOG_LOG_GER_OUTPUT_COMPOSITE_CODE
+
+Bool. If set to true will print the generated logger source code to stderr.
 
 
 =head1 SEE ALSO
