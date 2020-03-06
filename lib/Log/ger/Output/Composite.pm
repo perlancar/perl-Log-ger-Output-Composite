@@ -251,7 +251,7 @@ sub get_hooks {
                     push @src, "};\n";
                     my $src = join("", @src);
                     if ($ENV{LOG_LOG_GER_OUTPUT_COMPOSITE_CODE}) {
-                        print STDERR "Log::ger::Output::Composite logger source code: <<$src>>\n";
+                        warn "Log::ger::Output::Composite logger source code (target $target $target_arg): <<$src>>\n";
                     }
 
                     $logger = eval $src;
