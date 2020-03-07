@@ -1,3 +1,11 @@
+0.014   2020-03-07  Released-By: PERLANCAR; Urgency: medium
+
+	- Adjust to Log::ger 0.033 (new preferred hook create_outputter over
+          create_log_routine).
+
+        - [refactor] Rename variables for clarity.
+
+
 0.013   2020-03-07  Released-By: PERLANCAR; Urgency: medium
 
 	- Adjust to Log::ger 0.032 (no more logml stuffs, filters).
