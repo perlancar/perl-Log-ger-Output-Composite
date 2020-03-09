@@ -13,6 +13,10 @@ use Log::ger::Util;
 # precedence.
 our $Current_Level;
 
+sub meta { +{
+    v => 1,
+} }
+
 sub _get_min_max_level {
     my $level = shift;
     my ($min, $max);
