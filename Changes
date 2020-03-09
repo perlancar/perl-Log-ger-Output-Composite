@@ -1,3 +1,10 @@
+0.015   2020-03-09  Released-By: PERLANCAR; Urgency: low
+
+	- No functional changes.
+
+	- Adjust to Log::ger 0.034 (add meta()).
+
+
 0.014   2020-03-07  Released-By: PERLANCAR; Urgency: medium
 
 	- Adjust to Log::ger 0.033 (new preferred hook create_outputter over
