@@ -14,7 +14,7 @@ use Log::ger::Util;
 our $Current_Level;
 
 sub meta { +{
-    v => 1,
+    v => 2,
 } }
 
 sub _get_min_max_level {
