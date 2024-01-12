@@ -412,9 +412,9 @@ per-output layout.
 
 =head2 category_level => hash
 
-Specify per-category level. Optional. Hash key is category name, value is level
-(which can be a string/numeric level or a two-element array containing minimum
-and maximum level).
+Hash, optional. Specify per-category level. Hash key is category name, value is
+level (which can be a string/numeric level or a two-element array containing
+minimum and maximum level).
 
 
 =head1 FAQS
