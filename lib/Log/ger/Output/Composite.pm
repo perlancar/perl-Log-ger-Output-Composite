@@ -1,13 +1,13 @@
 package Log::ger::Output::Composite;
 
+use strict;
+use warnings;
+use Log::ger::Util;
+
 # AUTHORITY
 # DATE
 # DIST
 # VERSION
-
-use strict;
-use warnings;
-use Log::ger::Util;
 
 # this can be used to override all level settings as it has the highest
 # precedence.
