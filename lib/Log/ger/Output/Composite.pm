@@ -435,16 +435,15 @@ C<Log::ger::Output::Composite::set_level>, for example:
 This sets an internal level setting which is respected and has the highest
 precedence so all levels settings will use this instead. If previously you have:
 
- Log::ger::Output->set(Composite => {
-     default_level => 'error',
+ Log::ger::Output->set(Composite => (
      outputs => {
-         File => {path=>'/foo', level=>'debug'},
+         File   => {conf=>{path=>'/foo'}, level=>'debug'},
          Screen => {level=>'info', category_level=>{MyApp=>'warn'}},
      },
      category_level => {
          'MyApp::SubModule1' => 'debug',
      },
- });
+ ));
 
 then after the C<Log::ger::Output::Composite::set_level('trace')>, all the above
 per-category and per-output levels will be set to C<trace>.
