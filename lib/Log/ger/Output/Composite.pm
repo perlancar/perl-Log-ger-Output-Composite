@@ -354,8 +354,8 @@ per-category level. It can also apply per-output layout.
 
 =head2 outputs => hash
 
-Specify outputs. It's a hash with output name as keys and output specification
-as values.
+Hash. Specify outputs. Hash key is output name and and hash value is output
+specification.
 
 Output name is the name of output module without the C<Log::ger::Output::>
 prefix, e.g. L<Screen|Log::ger::Output::Screen> or
@@ -363,7 +363,7 @@ L<File|Log::ger::Output::File>.
 
 Output specification is either a hashref or arrayref of hashrefs to specify
 multiple outputs per type (e.g. if you want to output to two File's). Known
-hashref keys:
+hashref keys for output specification:
 
 =over
 
