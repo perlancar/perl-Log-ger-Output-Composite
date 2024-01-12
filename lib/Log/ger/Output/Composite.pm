@@ -104,7 +104,7 @@ sub get_hooks {
             # priority 10) which create null outputter for levels lower than the
             # general level, since we want to do our own custom level checking.
             sub {        # hook
-                no strict 'refs';
+                no strict 'refs'; ## no critic: TestingAndDebugging::ProhibitNoStrict
                 require Data::Dmp;
 
                 my %hook_args = @_; # see Log::ger::Manual::Internals/"Arguments passed to hook"
@@ -201,7 +201,7 @@ sub get_hooks {
                     "Log::ger::Stash::OComposite_$suffix";
                 };
                 {
-                    no strict 'refs';
+                    no strict 'refs'; ## no critic: TestingAndDebugging::ProhibitNoStrict
                     ${$varname} = [];
                     ${$varname}->[0] = $outputters;
                     ${$varname}->[1] = $layouters;
@@ -283,7 +283,7 @@ sub get_hooks {
                         warn "Log::ger::Output::Composite logger source code (target type=$hook_args{target_type} target name=$hook_args{target_name}, routine name=$hook_args{routine_name}): <<$src>>\n";
                     }
 
-                    $composite_outputter = eval $src;
+                    $composite_outputter = eval $src; ## no critic: BuiltinFunctions::ProhibitStringyEval
                 }
                 [$composite_outputter];
             }] # hook record
