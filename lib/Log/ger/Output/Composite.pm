@@ -459,4 +459,7 @@ Bool. If set to true will print the generated logger source code to stderr.
 
 Bool. If set to true, will print some debugging messages to stderr.
 
+
 =head1 SEE ALSO
+
+L<Log::ger::App> as an example on module that uses Log::ger::Output::Composite.
